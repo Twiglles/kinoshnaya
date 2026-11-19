@@ -132,6 +132,7 @@ GitHub Pages умеет только показывать страницы, а 
                 ".validate": "$day.matches(/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/) && newData.child('from').isNumber() && newData.child('to').isNumber() && newData.child('from').val() >= 0 && newData.child('to').val() <= 1440 && newData.child('from').val() < newData.child('to').val()",
                 "from": { ".validate": true },
                 "to": { ".validate": true },
+                "more": { "$i": { ".validate": "$i.matches(/^[0-9]$/) && newData.child('from').isNumber() && newData.child('to').isNumber() && newData.child('from').val() >= 0 && newData.child('to').val() <= 1440 && newData.child('from').val() < newData.child('to').val()", "from": { ".validate": true }, "to": { ".validate": true }, "$other": { ".validate": false } } },
                 "$other": { ".validate": false }
               }
             },

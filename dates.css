@@ -294,3 +294,36 @@ table.people { width: 100%; border-collapse: collapse; font-size: 13.5px; }
   .tl-name { margin-top: 8px; }
   .tl > .tl-name:empty { display: none; }
 }
+
+/* ---------- несколько времён в один день ---------- */
+.menu-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.menu-head small { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; opacity: .8; }
+.menu-done {
+  flex: none; padding: 6px 12px; border: 0; border-radius: 8px;
+  background: var(--white); color: var(--black); font: 600 13px/1 inherit; cursor: pointer;
+}
+.menu-item::before {
+  content: ""; flex: none; width: 18px; height: 18px; border: 2px solid rgba(255, 255, 255, .35); border-radius: 5px;
+}
+.menu-item.none::before { display: none; }
+.menu-item { justify-content: flex-start; }
+.menu-item[aria-selected="true"]::before { background: var(--white); border-color: var(--white); }
+.menu-item[aria-selected="true"]::after { content: none; }
+.menu-item[aria-selected="true"] { background: var(--accent); }
+
+/* телефон: список выезжает снизу листом, а не прячется в маленькой клетке */
+.menu.sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; top: auto; width: auto;
+  max-height: 80vh; overflow-y: auto; overscroll-behavior: contain;
+  padding: 10px 12px calc(14px + env(safe-area-inset-bottom));
+  border-radius: 18px 18px 0 0; border-width: 1px 0 0;
+  box-shadow: 0 -30px 80px rgba(0, 0, 0, .9);
+  z-index: 60; animation: sheet-in .2s ease-out;
+}
+.menu.sheet .menu-item { padding: 13px 12px; font-size: 15px; }
+@keyframes sheet-in { from { transform: translateY(24px); opacity: 0; } }
+body.sheet-open::after {
+  content: ""; position: fixed; inset: 0; background: rgba(0, 0, 0, .55); z-index: 55; pointer-events: none;
+}
+.cell.open { z-index: 70; }
+.menu-item[aria-selected="true"]::before { content: "✓"; display: grid; place-items: center; color: var(--black); font-size: 13px; font-weight: 700; }

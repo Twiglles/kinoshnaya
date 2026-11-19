@@ -89,17 +89,38 @@ window.KinoDates = (function () {
     return html + `</div></section>`;
   }
 
-  // Ответ из базы → { name, days: { key: [from, to] }, updatedAt }
+  // Объединяет пересекающиеся и соприкасающиеся промежутки: [[12,18],[17,24]] → [[12,24]]
+  const union = (list) => {
+    const rs = list.map((r) => [r[0], r[1]]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const out = [];
+    for (const r of rs) {
+      const last = out[out.length - 1];
+      if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]); else out.push(r);
+    }
+    return out;
+  };
+
+  // Ответ из базы → { name, days: { key: [[from, to], ...] }, updatedAt }.
+  // В базе день хранится как { from, to, more? }: from/to — первое время, more — остальные (если выбрано несколько).
   function normalize(raw) {
     const days = {};
     for (const [k, v] of Object.entries((raw && raw.days) || {})) {
-      if (/^\d{4}-\d{2}-\d{2}$/.test(k) && v) days[k] = clampRange([v.from, v.to]);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(k) || !v) continue;
+      const list = [clampRange([v.from, v.to])];
+      for (const m of Object.values(v.more || {})) if (m) list.push(clampRange([m.from, m.to]));
+      list.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+      days[k] = list.filter((r, i) => !i || r[0] !== list[i - 1][0] || r[1] !== list[i - 1][1]);
     }
     return { name: String((raw && raw.name) || "").slice(0, 60), same: raw ? raw.same !== false : true, days, updatedAt: Number(raw && raw.updatedAt) || 0 };
   }
   const serialize = (a) => {
     const days = {};
-    for (const [k, r] of Object.entries(a.days)) days[k] = { from: r[0], to: r[1] };
+    for (const [k, list] of Object.entries(a.days)) {
+      if (!list || !list.length) continue;
+      const day = { from: list[0][0], to: list[0][1] };
+      if (list.length > 1) day.more = list.slice(1).map((r) => ({ from: r[0], to: r[1] }));
+      days[k] = day;
+    }
     const out = { same: !!a.same, days, updatedAt: Date.now() };
     if (a.name) out.name = a.name;
     return out;
@@ -165,6 +186,6 @@ window.KinoDates = (function () {
     settings, $, esc, store, plural, people, daysWord, voterId,
     MONTHS, WD, keyOf, parseKey, todayKey,
     fmtTime, fmtRange, fmtShort, fmtDur, fmtDay, fmtDayLong, fmtWd,
-    clampRange, monthHTML, normalize, serialize, connect
+    clampRange, union, monthHTML, normalize, serialize, connect
   };
 })();

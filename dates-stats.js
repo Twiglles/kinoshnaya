@@ -8,12 +8,15 @@
   let selectedDay = null;
 
   // ---------- расчёты ----------
+  // Человек свободен весь отрезок [s, s + len], если он целиком лежит в одном из его промежутков в этот день.
+  const covers = (a, k, s, len) => a.days[k].some((r) => r[0] <= s && r[1] >= s + len);
+
   // По дню: кто отметил, и с какого времени начать, чтобы весь фильм смогло досмотреть больше всего людей.
   function analyzeDay(k) {
     const who = answers.filter((a) => a.days[k]);
     let best = { n: 0, start: null };
     for (let s = S.min; s + movie <= S.max; s += S.step) {
-      const n = who.filter((a) => a.days[k][0] <= s && a.days[k][1] >= s + movie).length;
+      const n = who.filter((a) => covers(a, k, s, movie)).length;
       if (n > best.n) best = { n, start: s };
     }
     return { k, who, best };
@@ -78,7 +81,7 @@
 
     const slots = [];
     for (let s = S.min; s < S.max; s += S.step) {
-      slots.push(d.who.filter((a) => a.days[d.k][0] <= s && a.days[d.k][1] >= s + S.step).length);
+      slots.push(d.who.filter((a) => covers(a, d.k, s, S.step)).length);
     }
     const peak = Math.max(0, ...slots);
     const hist = slots.map((c) => `<i class="${c && c === peak ? "max" : ""}" style="height:${peak ? (c / peak) * 100 : 0}%" title="${c}"></i>`).join("");
@@ -89,11 +92,11 @@
 
     const lanes = d.who
       .slice()
-      .sort((a, b) => a.days[d.k][0] - b.days[d.k][0])
+      .sort((a, b) => a.days[d.k][0][0] - b.days[d.k][0][0])
       .map((a) => {
-        const r = a.days[d.k];
+        const bars = a.days[d.k].map((r) => `<div class="tl-bar" style="left:${pct(r[0])}%;width:${pct(r[1]) - pct(r[0])}%">${K.fmtRange(r)}</div>`).join("");
         return `<div class="tl-name${a.name ? "" : " anon"}" title="${esc(a.label)}">${esc(a.label)}</div>
-          <div class="tl-lane"><div class="tl-bar" style="left:${pct(r[0])}%;width:${pct(r[1]) - pct(r[0])}%">${K.fmtRange(r)}</div></div>`;
+          <div class="tl-lane">${bars}</div>`;
       }).join("");
 
     $("#detail").innerHTML = `
@@ -120,7 +123,7 @@
         return `<tr>
           <td class="${a.name ? "" : "anon"}">${esc(a.label)}</td>
           <td>${days.length}</td>
-          <td><div class="chips">${days.map((k) => `<span class="chip">${K.fmtDay(k)} · ${K.fmtShort(a.days[k])}</span>`).join("")}</div></td>
+          <td><div class="chips">${days.map((k) => `<span class="chip">${K.fmtDay(k)} · ${a.days[k].map(K.fmtShort).join(" + ")}</span>`).join("")}</div></td>
           <td class="when">${fmtWhen(a.updatedAt)}</td>
         </tr>`;
       }).join("");
@@ -153,8 +156,9 @@
     const lines = [["Кто", "id", "Дата", "С", "До", "Обновлено"].map(q).join(";")];
     for (const a of answers) {
       for (const k of Object.keys(a.days).sort()) {
-        const r = a.days[k];
-        lines.push([a.label, a.id, k, K.fmtTime(r[0]), K.fmtTime(r[1]), a.updatedAt ? new Date(a.updatedAt).toISOString() : ""].map(q).join(";"));
+        for (const r of a.days[k]) {
+          lines.push([a.label, a.id, k, K.fmtTime(r[0]), K.fmtTime(r[1]), a.updatedAt ? new Date(a.updatedAt).toISOString() : ""].map(q).join(";"));
+        }
       }
     }
     const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
@@ -176,7 +180,11 @@
     (all) => {
       let anon = 0;
       answers = Object.entries(all || {})
-        .map(([id, raw]) => ({ id, ...K.normalize(raw) }))
+        .map(([id, raw]) => {
+          const a = { id, ...K.normalize(raw) };
+          for (const k of Object.keys(a.days)) a.days[k] = K.union(a.days[k]);
+          return a;
+        })
         .filter((a) => Object.keys(a.days).length)
         .sort((a, b) => a.updatedAt - b.updatedAt)
         .map((a) => ({ ...a, label: a.name || `Без имени ${++anon}` }));

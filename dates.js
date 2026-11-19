@@ -4,8 +4,8 @@
   const { $, esc, store } = K;
   const LK = "kino.dates.mine." + S.pollId;
   const ym = S.months[0];
-  // Мышь — свой красивый список в клетке; палец — системный.
-  const fine = matchMedia("(hover: hover) and (pointer: fine)").matches;
+  // Список времён открывается в клетке; на телефоне — снизу листом.
+  const touch = !matchMedia("(hover: hover) and (pointer: fine)").matches;
 
   // Мой ответ. Сначала берём из браузера, чтобы страница открылась сразу с отметками.
   const state = (() => {
@@ -23,6 +23,9 @@
   const shortOf = (r) => { const i = slotIndex(r); return i >= 0 ? S.slots[i].short : K.fmtRange(r); };
   // Совсем коротко для узкой клетки на телефоне: «с 19:00» → «19:00», «весь день» → «весь».
   const tinyOf = (r) => shortOf(r).replace(/^с\s+/i, "").split(" ")[0];
+  // Несколько времён в один день: первое и «+N».
+  const listShort = (list) => shortOf(list[0]) + (list.length > 1 ? ` +${list.length - 1}` : "");
+  const listTiny = (list) => tinyOf(list[0]) + (list.length > 1 ? `+${list.length - 1}` : "");
 
   // ---------- календарь на весь экран ----------
   function renderBoard() {
@@ -33,18 +36,16 @@
     const rows = Math.ceil((lead + total) / 7);
     $("#d-month").innerHTML = `${K.MONTHS[m - 1]} <span>${y}</span>`;
 
-    const options = `<option value="">Не могу</option>` + S.slots.map((s, i) => `<option value="${i}">${esc(s.label)}</option>`).join("");
     let html = K.WD.map((w, i) => `<div class="wd${i > 4 ? " we" : ""}">${w}</div>`).join("");
     for (let i = 0; i < lead; i++) html += `<div class="cell blank" aria-hidden="true"></div>`;
     for (let d = 1; d <= total; d++) {
       const k = K.keyOf(y, m, d);
       const we = (new Date(y, m - 1, d).getDay() + 6) % 7 > 4;
       if (k < K.todayKey) { html += `<div class="cell past${we ? " we" : ""}"><span class="dn">${d}</span></div>`; continue; }
-      html += `<div class="cell${we ? " we" : ""}" data-k="${k}"${fine ? ` tabindex="0" role="button" aria-haspopup="listbox" aria-label="${esc(K.fmtDayLong(k))}: во сколько удобно"` : ""}>
+      html += `<div class="cell${we ? " we" : ""}" data-k="${k}"tabindex="0" role="button" aria-haspopup="listbox" aria-label="${esc(K.fmtDayLong(k))}: во сколько удобно">
         <span class="dn">${d}</span>
         <span class="cnt"></span>
         <span class="pick"><span class="pick-text">время</span><span class="pick-tiny"></span><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-        ${fine ? "" : `<select aria-label="${esc(K.fmtDayLong(k))}: во сколько удобно">${options}</select>`}
       </div>`;
     }
     const board = $("#d-board");
@@ -63,16 +64,9 @@
     document.querySelectorAll("#d-board .cell[data-k]").forEach((el) => {
       const k = el.dataset.k;
       const r = state.days[k];
-      const sel = el.querySelector("select");
       el.classList.toggle("on", !!r);
-      if (sel) {
-        // Время из старой версии страницы, которого нет в списке, показываем отдельным пунктом.
-        sel.querySelector("option[data-custom]")?.remove();
-        if (r && slotIndex(r) < 0) sel.insertAdjacentHTML("beforeend", `<option value="c" data-custom>${K.fmtRange(r)}</option>`);
-        sel.value = r ? (slotIndex(r) >= 0 ? String(slotIndex(r)) : "c") : "";
-      }
-      el.querySelector(".pick-text").textContent = r ? shortOf(r) : "время";
-      el.querySelector(".pick-tiny").textContent = r ? tinyOf(r) : "+";
+      el.querySelector(".pick-text").textContent = r ? listShort(r) : "время";
+      el.querySelector(".pick-tiny").textContent = r ? listTiny(r) : "+";
       const n = S.showCounts ? countFor(k) : 0;
       const cnt = el.querySelector(".cnt");
       cnt.textContent = n || "";
@@ -80,17 +74,19 @@
     });
   }
 
+  // "" — «Не могу» (снять день); число — включить или выключить это время; "c" — время из старой версии, не трогаем.
   function choose(k, value) {
     if (value === "") delete state.days[k];
-    else if (value !== "c") { const s = S.slots[Number(value)]; state.days[k] = [s.from, s.to]; }
+    else if (value !== "c") {
+      const s = S.slots[Number(value)];
+      const list = (state.days[k] || []).slice();
+      const i = list.findIndex((r) => r[0] === s.from && r[1] === s.to);
+      if (i >= 0) list.splice(i, 1); else list.push([s.from, s.to]);
+      list.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+      if (list.length) state.days[k] = list; else delete state.days[k];
+    }
     changed();
   }
-
-  // Телефон: системный список, он удобнее пальцем.
-  $("#d-board").addEventListener("change", (e) => {
-    const sel = e.target.closest("select");
-    if (sel) choose(sel.closest(".cell").dataset.k, sel.value);
-  });
 
   // Компьютер: свой список, раскрывается прямо из клетки.
   let openCell = null;
@@ -98,6 +94,7 @@
     if (!openCell) return;
     openCell.querySelector(".menu")?.remove();
     openCell.classList.remove("open", "up", "left");
+    document.body.classList.remove("sheet-open");
     openCell.setAttribute("aria-expanded", "false");
     if (focusCell) openCell.focus();
     openCell = null;
@@ -105,30 +102,52 @@
   function openMenu(cell) {
     closeMenu();
     const k = cell.dataset.k;
-    const r = state.days[k];
-    const cur = r ? (slotIndex(r) >= 0 ? String(slotIndex(r)) : "c") : "";
-    const items = [["", "Не могу"], ...S.slots.map((s, i) => [String(i), s.label])];
-    if (cur === "c") items.push(["c", K.fmtRange(r)]);
+    const list = state.days[k] || [];
+    const isOn = (r) => list.some((x) => x[0] === r[0] && x[1] === r[1]);
+    // Время из старой версии страницы, которого нет в списке, показываем отдельным пунктом.
+    const custom = list.filter((r) => slotIndex(r) < 0);
+    const items = [...S.slots.map((s, i) => [String(i), s.label, isOn([s.from, s.to])]), ...custom.map((r) => ["c", K.fmtRange(r), true])];
     const menu = document.createElement("div");
-    menu.className = "menu";
+    menu.className = "menu" + (touch ? " sheet" : "");
     menu.setAttribute("role", "listbox");
-    menu.innerHTML = `<div class="menu-head">${esc(K.fmtDayLong(k))}</div>` + items.map(([v, label]) =>
-      `<button type="button" role="option" class="menu-item${v === "" ? " none" : ""}" data-v="${v}" aria-selected="${v === cur}">${esc(label)}</button>`).join("");
+    menu.setAttribute("aria-multiselectable", "true");
+    menu.innerHTML = `<div class="menu-head"><span>${esc(K.fmtDayLong(k))}<small>можно выбрать несколько</small></span><button type="button" class="menu-done">Готово</button></div>` +
+      items.map(([v, label, on]) =>
+        `<button type="button" role="option" class="menu-item" data-v="${v}" aria-selected="${on}">${esc(label)}</button>`).join("") +
+      `<button type="button" role="option" class="menu-item none" data-v="" aria-selected="false">Не могу в этот день</button>`;
     cell.appendChild(menu);
     cell.classList.add("open");
     cell.setAttribute("aria-expanded", "true");
-    // Не даём списку уйти за край экрана.
-    const box = cell.getBoundingClientRect();
-    const mh = menu.offsetHeight, mw = menu.offsetWidth;
-    if (box.top + 8 + mh > innerHeight && box.bottom - mh > 0) cell.classList.add("up");
-    if (box.left + mw > document.documentElement.clientWidth - 8) cell.classList.add("left");
+    if (touch) {
+      document.body.classList.add("sheet-open");
+    } else {
+      // Не даём списку уйти за край экрана.
+      const box = cell.getBoundingClientRect();
+      const mh = menu.offsetHeight, mw = menu.offsetWidth;
+      if (box.top + 8 + mh > innerHeight && box.bottom - mh > 0) cell.classList.add("up");
+      if (box.left + mw > document.documentElement.clientWidth - 8) cell.classList.add("left");
+    }
     openCell = cell;
     (menu.querySelector('[aria-selected="true"]') || menu.querySelector(".menu-item")).focus({ preventScroll: true });
   }
-  if (fine) {
+  {
     $("#d-board").addEventListener("click", (e) => {
+      if (e.target.closest(".menu-done")) { closeMenu(true); return; }
       const item = e.target.closest(".menu-item");
-      if (item) { const cell = item.closest(".cell"); choose(cell.dataset.k, item.dataset.v); closeMenu(true); return; }
+      if (item) {
+        const cell = item.closest(".cell");
+        choose(cell.dataset.k, item.dataset.v);
+        if (item.dataset.v === "") { closeMenu(true); return; }
+        // список остаётся открытым: можно отметить ещё время
+        const keep = cell.querySelector(".menu").scrollTop;
+        const v = item.dataset.v;
+        closeMenu();
+        openMenu(cell);
+        const m = cell.querySelector(".menu");
+        m.scrollTop = keep;
+        (m.querySelector(`.menu-item[data-v="${v}"]`) || m).focus({ preventScroll: true });
+        return;
+      }
       if (e.target.closest(".menu")) return;
       const cell = e.target.closest(".cell[data-k]");
       if (!cell) return;
