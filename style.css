@@ -314,6 +314,17 @@ a.rate:hover { border-color: var(--white); }
   100% { box-shadow: 0 0 0 0 rgba(137, 12, 12, 0); }
 }
 
+/* Шапка панели результатов — основным красным */
+.panel-head { background: var(--accent); color: var(--white); border-bottom-color: rgba(0, 0, 0, .25); }
+.panel-head .panel-summary, .panel-head .chev { color: rgba(255, 255, 255, .85); }
+.panel-head .live-dot { background: rgba(255, 255, 255, .6); }
+.panel-head .live-dot.on { background: var(--white); animation: pulse-w 2s infinite; }
+@keyframes pulse-w {
+  0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, .8); }
+  70% { box-shadow: 0 0 0 8px rgba(255, 255, 255, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+}
+
 .panel-body { flex: 1; overflow-y: auto; padding: 14px 12px 18px; }
 
 .board { position: relative; }
