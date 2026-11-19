@@ -25,7 +25,7 @@
   const tinyOf = (r) => shortOf(r).replace(/^с\s+/i, "").split(" ")[0];
   // Несколько времён в один день: первое и «+N».
   const listShort = (list) => shortOf(list[0]) + (list.length > 1 ? ` +${list.length - 1}` : "");
-  const listTiny = (list) => tinyOf(list[0]) + (list.length > 1 ? `+${list.length - 1}` : "");
+  const listTiny = (list) => (list.length > 1 ? `×${list.length}` : tinyOf(list[0]));
 
   // ---------- календарь на весь экран ----------
   function renderBoard() {
